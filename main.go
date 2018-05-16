@@ -52,6 +52,7 @@ func main() {
 					return
 				}
 				//将数据响应给客户端
+				w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 				w.Write(result)
 				return
 			}
