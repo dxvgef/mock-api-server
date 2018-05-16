@@ -17,9 +17,10 @@ type Config struct {
 
 // Router 配置文件中的路由结构
 type Router struct {
-	Path   string
-	Method string
-	Data   map[string]interface{}
+	Path   string                 `json:"path"`
+	Method string                 `json:"method"`
+	Status int                    `json:"status"`
+	Data   map[string]interface{} `json:"data"`
 }
 
 func main() {
@@ -54,6 +55,7 @@ func main() {
 					return
 				}
 				//将数据响应给客户端
+				w.WriteHeader(v.Status)
 				w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 				w.Write(result)
 				return

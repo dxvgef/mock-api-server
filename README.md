@@ -13,6 +13,7 @@ Go语言开发的模拟API服务端，Web前端开发可以用它模拟后端服
         {
             "path": "/",
             "method": "post",
+            "status": 200,
             "data": {
                 "error": "",
                 "id": 123
@@ -28,6 +29,8 @@ Go语言开发的模拟API服务端，Web前端开发可以用它模拟后端服
 `path` 表示允许HTTP请求的路径
 
 `method` 表示允许HTTP请求的方法
+
+`status` 表示响应给客户端的HTTP状态码
 
 `data` 表示要响应给客户端的数据，该节点可以写成任意结构的JSON数据
 
