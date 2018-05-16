@@ -41,6 +41,8 @@ func main() {
 	for _, v := range config.Routers {
 		//注册路由
 		http.HandleFunc(v.Path, func(w http.ResponseWriter, r *http.Request) {
+			//允许来自所有域的请求
+			w.Header().Set("Access-Control-Allow-Origin", "*")
 			// 打印请求
 			log.Println(r.Method, r.RequestURI, r.Header)
 			// 判断HTTP方法是否匹配
