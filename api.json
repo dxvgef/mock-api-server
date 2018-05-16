@@ -1,0 +1,13 @@
+{
+    "listen": "127.0.0.1:3000",
+    "routers": [
+        {
+            "path": "/",
+            "method": "post",
+            "data": {
+                "error": "ok",
+                "id": 123
+            }
+        }
+    ]
+}
