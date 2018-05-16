@@ -5,7 +5,7 @@
             "path": "/",
             "method": "post",
             "data": {
-                "error": "ok",
+                "error": "",
                 "id": 123
             }
         }
