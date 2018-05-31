@@ -44,6 +44,16 @@ func main() {
 		http.HandleFunc(v.Path, func(w http.ResponseWriter, r *http.Request) {
 			//允许来自所有域的请求
 			w.Header().Set("Access-Control-Allow-Origin", "*")
+			//如果是预检查的options请求
+			if r.Method == strings.ToUpper("options") {
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				w.Header().Set("Access-Control-Allow-Methods", v.Method)
+				w.Header().Set("Access-Control-Allow-Headers", "*")
+				w.Header().Set("Access-Control-Expose-Headers", "*")
+				//响应202请求
+				w.WriteHeader(http.StatusAccepted)
+				return
+			}
 			// 打印请求
 			log.Println(r.Method, r.RequestURI, r.Header)
 			// 判断HTTP方法是否匹配
