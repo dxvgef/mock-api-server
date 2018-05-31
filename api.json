@@ -1,13 +1,29 @@
 {
-    "listen": "127.0.0.1:3000",
+    "listen": "0.0.0.0:3000",
     "routers": [
         {
-            "path": "/",
+            "desc": "Test post request",
+            "path": "/auth",
             "method": "post",
             "status": 200,
             "data": {
                 "error": "",
-                "id": 123
+                "data": {
+                    "token": "123456"
+                }
+            }
+        },
+        {
+            "desc": "Test get request",
+            "path": "/test",
+            "method": "get",
+            "status": 200,
+            "data": {
+                "error": "",
+                "data": {
+                    "aaa": "AAA",
+                    "bbb": 111
+                }
             }
         }
     ]
