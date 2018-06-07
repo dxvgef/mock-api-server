@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
 )
 
 // Config 配置文件结构
@@ -28,20 +30,83 @@ type Router struct {
 
 const timeTpl = "2006-01-02 15:04:05"
 
+var config *Config
+
 func main() {
-	//log.SetFlags(log.Lshortfile)
+	log.SetFlags(log.Lshortfile)
 
 	//从运行命令中获得配置文件名
 	configFileName := flag.String("config", "api.json", "Specify the configuration file")
 	flag.Parse()
 
 	//读取json配置文件
-	var config *Config
 	err := config.Load(*configFileName, &config)
 	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	//启动配置文件监听
+	go watcher(configFileName)
+
+	//启动服务
+	fmt.Println("Listen on " + config.Listen)
+	if err := http.ListenAndServe(config.Listen, nil); err != nil {
 		log.Println(err.Error())
 		return
 	}
+}
+
+func watcher(configFileName *string) {
+	//创建监视器
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer watcher.Close()
+	done := make(chan bool)
+
+	go func() {
+		for {
+			select {
+			case event := <-watcher.Events:
+				//fmt.Println("Event:", event)
+				if event.Op&fsnotify.Write == fsnotify.Write {
+					//读取json配置文件
+					err = config.Load(*configFileName, &config)
+					if err != nil {
+						fmt.Println(err.Error())
+						return
+					}
+				}
+			case err := <-watcher.Errors:
+				fmt.Println("* Error:", err)
+			}
+		}
+	}()
+
+	err = watcher.Add(*configFileName)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	<-done
+}
+
+// 加载json配置文件
+func (obj *Config) Load(filename string, v interface{}) error {
+	fmt.Println("* Loading configuration file: " + filename)
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(data, v)
+	if err != nil {
+		return err
+	}
+
+	//重置路由
+	http.DefaultServeMux = http.NewServeMux()
 
 	//遍历配置文件中的路由节点
 	for k := range config.Routers {
@@ -93,23 +158,6 @@ func main() {
 		})
 	}
 
-	//启动服务
-	fmt.Println("Listen on " + config.Listen)
-	if err := http.ListenAndServe(config.Listen, nil); err != nil {
-		log.Println(err.Error())
-		return
-	}
-}
-
-// 加载json配置文件
-func (obj *Config) Load(filename string, v interface{}) error {
-	data, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return err
-	}
-	err = json.Unmarshal(data, v)
-	if err != nil {
-		return err
-	}
+	fmt.Println("* The configuration file was successfully loaded")
 	return nil
 }
