@@ -93,6 +93,13 @@ func watcher(configFileName *string) {
 	<-done
 }
 
+func Handle404(handler http.Handler, handle404 func(w http.ResponseWriter, r *http.Request) bool) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(404)
+		w.Write([]byte(http.StatusText(404)))
+	})
+}
+
 // 加载json配置文件
 func (obj *Config) Load(filename string, v interface{}) error {
 	fmt.Println("* Loading configuration file: " + filename)
@@ -108,10 +115,14 @@ func (obj *Config) Load(filename string, v interface{}) error {
 	//重置路由
 	http.DefaultServeMux = http.NewServeMux()
 
+	//存在根路径的路由
+	var hasRootPath = false
+
 	//遍历配置文件中的路由节点
 	for k := range config.Routers {
 		this := config.Routers[k]
 		//fmt.Println("注册路由 [" + this.Method + "] " + this.Path)
+
 		//注册路由
 		http.HandleFunc(this.Path, func(w http.ResponseWriter, r *http.Request) {
 			//允许来自所有域的请求
@@ -120,6 +131,16 @@ func (obj *Config) Load(filename string, v interface{}) error {
 			w.Header().Set("Access-Control-Allow-Methods", "*")
 			w.Header().Set("Access-Control-Allow-Headers", "*")
 			w.Header().Set("Access-Control-Expose-Headers", "*")
+
+			if this.Path == "/" {
+				hasRootPath = true
+				if r.RequestURI != "/" {
+					w.WriteHeader(http.StatusNotFound)
+					w.Write([]byte(http.StatusText(http.StatusNotFound)))
+					return
+				}
+			}
+
 			//如果是预检查的options请求
 			if r.Method == "OPTIONS" {
 				//响应202请求
@@ -155,6 +176,24 @@ func (obj *Config) Load(filename string, v interface{}) error {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			w.Write([]byte("[" + r.Method + "] " + http.StatusText(http.StatusMethodNotAllowed)))
 			fmt.Println("* Response Status: ", http.StatusMethodNotAllowed)
+		})
+	}
+
+	//如果不存在根路由
+	if hasRootPath == false {
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			//允许来自所有域的请求
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Methods", "*")
+			w.Header().Set("Access-Control-Allow-Headers", "*")
+			w.Header().Set("Access-Control-Expose-Headers", "*")
+
+			if r.RequestURI != "/" {
+				w.WriteHeader(http.StatusNotFound)
+				w.Write([]byte(http.StatusText(http.StatusNotFound)))
+				return
+			}
 		})
 	}
 
