@@ -11,6 +11,7 @@ Go语言开发的模拟API服务端，Web前端开发可以用它模拟后端服
     "listen": "127.0.0.1:3000",
     "routers": [
         {
+            "desc": "这里可以写说明注释",
             "path": "/",
             "method": "post",
             "status": 200,
@@ -18,21 +19,29 @@ Go语言开发的模拟API服务端，Web前端开发可以用它模拟后端服
                 "error": "",
                 "id": 123
             }
+        },
+        {
+            "desc": "下面用include加载了一个外部json文件",
+            "include": "data.json"
         }
     ]
 }
 ```
-`listen` 表示服务要监听的IP及端口
+`listen` 必要，表示服务要监听的IP及端口
 
-`routers` 表示要注册的路由
+`routers` 必要，表示要注册的路由
 
-`path` 表示允许HTTP请求的路径
+`desc` 非必要，表示说明注释
 
-`method` 表示允许HTTP请求的方法
+`path` 必要，表示允许HTTP请求的路径
 
-`status` 表示响应给客户端的HTTP状态码
+`method` 必要，表示允许HTTP请求的方法
 
-`data` 表示要响应给客户端的数据，该节点可以写成任意结构的JSON数据
+`status` 必要，表示响应给客户端的HTTP状态码
+
+`data` 非必要，表示要响应给客户端的数据，该节点可以写成任意结构的JSON数据
+
+`include` 非必要，表示加载同目录下的另一个JSON配置文件
 
 #### 二、将`mock-api-server`的可执行文件拷贝到系统目录中：
 - Windows的路径为`C:\Windows`

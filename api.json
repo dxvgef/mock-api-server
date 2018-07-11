@@ -27,23 +27,8 @@
             }
         },
         {
-            "desc": "Test get request",
-            "path": "/test2",
-            "method": "get",
-            "status": 200,
-            "data": {
-                "error": "",
-                "data": [
-                    {
-                        "aaa": "AAA",
-                        "bbb": 111
-                    },
-                    {
-                        "ccc": "BBB",
-                        "ddd": 222
-                    }
-                ]
-            }
+            "desc": "加载外部json文件",
+            "include": "data.json"
         }
     ]
 }

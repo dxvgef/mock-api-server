@@ -20,12 +20,18 @@ type Config struct {
 	Routers []Router `json:"routers"`
 }
 
-// Router 配置文件中的路由结构
-type Router struct {
+type Route struct {
+	Desc   string                 `json:"desc,omitempty"`
 	Path   string                 `json:"path"`
 	Method string                 `json:"method"`
 	Status int                    `json:"status"`
 	Data   map[string]interface{} `json:"data"`
+}
+
+// Router 配置文件中的路由结构
+type Router struct {
+	Include string `json:"include,omitempty"`
+	Route
 }
 
 const timeTpl = "2006-01-02 15:04:05"
@@ -42,7 +48,7 @@ func main() {
 	//读取json配置文件
 	err := config.Load(*configFileName, &config)
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return
 	}
 
@@ -62,6 +68,7 @@ func watcher(configFileName *string) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal(err)
+		return
 	}
 	defer watcher.Close()
 	done := make(chan bool)
@@ -75,12 +82,12 @@ func watcher(configFileName *string) {
 					//读取json配置文件
 					err = config.Load(*configFileName, &config)
 					if err != nil {
-						fmt.Println(err.Error())
-						return
+						log.Println(err.Error())
+						break
 					}
 				}
 			case err := <-watcher.Errors:
-				fmt.Println("* Error:", err)
+				log.Println("* Error:", err)
 			}
 		}
 	}()
@@ -93,22 +100,18 @@ func watcher(configFileName *string) {
 	<-done
 }
 
-func Handle404(handler http.Handler, handle404 func(w http.ResponseWriter, r *http.Request) bool) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(404)
-		w.Write([]byte(http.StatusText(404)))
-	})
-}
-
-// 加载json配置文件
+// 加载所有json配置文件
 func (obj *Config) Load(filename string, v interface{}) error {
 	fmt.Println("* Loading configuration file: " + filename)
+	//读取配置文件
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err
 	}
+	//反序列化json
 	err = json.Unmarshal(data, v)
 	if err != nil {
+		log.Println(err.Error())
 		return err
 	}
 
@@ -121,7 +124,30 @@ func (obj *Config) Load(filename string, v interface{}) error {
 	//遍历配置文件中的路由节点
 	for k := range config.Routers {
 		this := config.Routers[k]
-		//fmt.Println("注册路由 [" + this.Method + "] " + this.Path)
+
+		//如果是外部json文件
+		if this.Include != "" {
+			//读取配置文件
+			data, err := ioutil.ReadFile(this.Include)
+			if err != nil {
+				log.Println(err.Error())
+				return err
+			}
+			var route *Route
+			//反序列化json
+			err = json.Unmarshal(data, &route)
+			if err != nil {
+				log.Println(err.Error())
+				return err
+			}
+			this.Desc = route.Desc
+			this.Path = route.Path
+			this.Method = route.Method
+			this.Status = route.Status
+			this.Data = route.Data
+		}
+
+		//fmt.Println("Registered Routing: [" + this.Method + "] " + this.Path)
 
 		//注册路由
 		http.HandleFunc(this.Path, func(w http.ResponseWriter, r *http.Request) {
