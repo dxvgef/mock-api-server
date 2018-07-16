@@ -21,7 +21,7 @@ Go语言开发的模拟API服务端，Web前端开发可以用它模拟后端服
             }
         },
         {
-            "desc": "下面用include加载了一个外部json文件",
+            "desc": "用include指令加载了一个与入口配置文件同目录下的data.json文件",
             "include": "data.json"
         }
     ]
@@ -49,8 +49,10 @@ Go语言开发的模拟API服务端，Web前端开发可以用它模拟后端服
 
 #### 三、启动终端，进入配置文件所在的路径，运行`mock-api-server`命令启动服务。
 
-Mock API Server默认会在命令所在的路径下查找`api.json`文件做为配置文件，也可以通过`-config=`参数指定配置文件，例如：
+Mock API Server默认会在命令所在的路径下查找`/mock/api.json`文件做为入口配置文件，也可以通过`-config=`参数指定入口配置文件，例如：
 
-`mock-api-server -config=test.json`
+`mock-api-server -config=entry.json`
 
-`mock-api-server -config=~/test.json`
+`mock-api-server -config=./mock/entry.json`
+
+入口配置文件所在的路径内，如果有文件内容被改写，将会触发路由规则的实时更新。
