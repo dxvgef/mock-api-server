@@ -1,0 +1,33 @@
+{
+    "listen": "0.0.0.0:3000",
+    "routers": [
+        {
+            "desc": "GET Request",
+            "path": "/",
+            "method": "get",
+            "status": 200,
+            "data": {
+                "error": "",
+                "data": {
+                    "key": "value"
+                }
+            }
+        },
+        {
+            "desc": "POST Request",
+            "path": "/test",
+            "method": "post",
+            "status": 200,
+            "data": {
+                "error": "",
+                "data": {
+                    "key": 123456
+                }
+            }
+        },
+        {
+            "desc": "Include JSON configure file",
+            "include": "test2.json"
+        }
+    ]
+}

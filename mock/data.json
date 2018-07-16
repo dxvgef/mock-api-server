@@ -1,0 +1,22 @@
+{
+    "desc": "Test array data",
+    "path": "/test2",
+    "method": "get",
+    "status": 200,
+    "data": {
+        "error": "",
+        "data": {
+            "count": 2,
+            "rows": [
+                {
+                    "a": "AAA",
+                    "b": "BBB"
+                },
+                {
+                    "c": "CCC",
+                    "d": "DDD"
+                }
+            ]
+        }
+    }
+}
