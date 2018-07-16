@@ -11,15 +11,24 @@ import (
 	"strings"
 	"time"
 
+	"path/filepath"
+
 	"github.com/fsnotify/fsnotify"
 )
 
-// Config 配置文件结构
+// 配置文件结构
 type Config struct {
 	Listen  string   `json:"listen"`
 	Routers []Router `json:"routers"`
 }
 
+// 路由结构
+type Router struct {
+	Include string `json:"include,omitempty"`
+	Route
+}
+
+// 路由结构详细
 type Route struct {
 	Desc   string                 `json:"desc,omitempty"`
 	Path   string                 `json:"path"`
@@ -28,25 +37,33 @@ type Route struct {
 	Data   map[string]interface{} `json:"data"`
 }
 
-// Router 配置文件中的路由结构
-type Router struct {
-	Include string `json:"include,omitempty"`
-	Route
-}
-
 const timeTpl = "2006-01-02 15:04:05"
 
 var config *Config
 
+var configFiles []string
+
+var configPath string
+
 func main() {
 	log.SetFlags(log.Lshortfile)
 
-	//从运行命令中获得配置文件名
-	configFileName := flag.String("config", "api.json", "Specify the configuration file")
+	//从运行命令中获得入口配置文件名
+	configFileName := flag.String("config", "./mock/api.json", "Specify the entry configuration file")
 	flag.Parse()
 
+	//获得配置文件的目录
+	configPath = filepath.Dir(*configFileName)
+
 	//读取json配置文件
-	err := config.Load(*configFileName, &config)
+	err := loadConfig(*configFileName, &config)
+	if err != nil {
+		log.Println(err.Error())
+		return
+	}
+
+	//更新路由
+	err = updateRouters()
 	if err != nil {
 		log.Println(err.Error())
 		return
@@ -63,6 +80,7 @@ func main() {
 	}
 }
 
+// 监视配置文件变更
 func watcher(configFileName *string) {
 	//创建监视器
 	watcher, err := fsnotify.NewWatcher()
@@ -80,19 +98,25 @@ func watcher(configFileName *string) {
 				//fmt.Println("Event:", event)
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					//读取json配置文件
-					err = config.Load(*configFileName, &config)
+					err = loadConfig(*configFileName, &config)
+					if err != nil {
+						log.Println(err.Error())
+						break
+					}
+					//更新路由
+					err = updateRouters()
 					if err != nil {
 						log.Println(err.Error())
 						break
 					}
 				}
 			case err := <-watcher.Errors:
-				log.Println("* Error:", err)
+				log.Println("Error:", err)
 			}
 		}
 	}()
 
-	err = watcher.Add(*configFileName)
+	err = watcher.Add(configPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -100,9 +124,9 @@ func watcher(configFileName *string) {
 	<-done
 }
 
-// 加载所有json配置文件
-func (obj *Config) Load(filename string, v interface{}) error {
-	fmt.Println("* Loading configuration file: " + filename)
+// 加载配置文件
+func loadConfig(filename string, v interface{}) error {
+	//fmt.Println("Loading configuration file")
 	//读取配置文件
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -115,12 +139,6 @@ func (obj *Config) Load(filename string, v interface{}) error {
 		return err
 	}
 
-	//重置路由
-	http.DefaultServeMux = http.NewServeMux()
-
-	//存在根路径的路由
-	var hasRootPath = false
-
 	//遍历配置文件中的路由节点
 	for k := range config.Routers {
 		this := config.Routers[k]
@@ -128,7 +146,7 @@ func (obj *Config) Load(filename string, v interface{}) error {
 		//如果是外部json文件
 		if this.Include != "" {
 			//读取配置文件
-			data, err := ioutil.ReadFile(this.Include)
+			data, err := ioutil.ReadFile(configPath + "/" + this.Include)
 			if err != nil {
 				log.Println(err.Error())
 				return err
@@ -140,12 +158,29 @@ func (obj *Config) Load(filename string, v interface{}) error {
 				log.Println(err.Error())
 				return err
 			}
-			this.Desc = route.Desc
-			this.Path = route.Path
-			this.Method = route.Method
-			this.Status = route.Status
-			this.Data = route.Data
+			config.Routers[k].Desc = route.Desc
+			config.Routers[k].Path = route.Path
+			config.Routers[k].Method = route.Method
+			config.Routers[k].Status = route.Status
+			config.Routers[k].Data = route.Data
 		}
+	}
+
+	fmt.Println("Load configuration file success")
+	return nil
+}
+
+// 更新所有路由规则
+func updateRouters() error {
+	//重置路由
+	http.DefaultServeMux = http.NewServeMux()
+
+	//存在根路径的路由
+	var hasRootPath = false
+
+	//遍历配置文件中的路由节点
+	for k := range config.Routers {
+		this := config.Routers[k]
 
 		//fmt.Println("Registered Routing: [" + this.Method + "] " + this.Path)
 
@@ -175,9 +210,9 @@ func (obj *Config) Load(filename string, v interface{}) error {
 			}
 			// 打印请求
 			fmt.Println()
-			fmt.Println("* Request Time: " + time.Now().Format(timeTpl))
-			fmt.Println("* Request Resource: [" + r.Method + "] " + r.RequestURI)
-			fmt.Println("* Request Headers: ")
+			fmt.Println("Request Time: " + time.Now().Format(timeTpl))
+			fmt.Println("Request Resource: [" + r.Method + "] " + r.RequestURI)
+			fmt.Println("Request Headers: ")
 			for k := range r.Header {
 				fmt.Println(k, "=", r.Header.Get(k))
 			}
@@ -193,15 +228,15 @@ func (obj *Config) Load(filename string, v interface{}) error {
 				//将数据响应给客户端
 				w.WriteHeader(this.Status)
 				w.Write(result)
-				fmt.Println("* Response Status: " + strconv.Itoa(this.Status))
-				fmt.Println("* Response Data: ")
+				fmt.Println("Response Status: " + strconv.Itoa(this.Status))
+				fmt.Println("Response Data: ")
 				fmt.Println(string(result))
 				return
 			}
 			//响应405错误
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			w.Write([]byte("[" + r.Method + "] " + http.StatusText(http.StatusMethodNotAllowed)))
-			fmt.Println("* Response Status: ", http.StatusMethodNotAllowed)
+			fmt.Println("Response Status: ", http.StatusMethodNotAllowed)
 		})
 	}
 
@@ -223,6 +258,6 @@ func (obj *Config) Load(filename string, v interface{}) error {
 		})
 	}
 
-	fmt.Println("* The configuration file was successfully loaded")
+	fmt.Println("Update router success")
 	return nil
 }
