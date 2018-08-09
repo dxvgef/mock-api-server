@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/julienschmidt/httprouter"
+	"github.com/rs/cors"
 )
 
 // 配置文件结构
@@ -45,11 +47,15 @@ var config *Config
 // 配置文件所在的路径
 var configPath string
 
+var router *httprouter.Router
+
 // 配置文件清单
-//var configFiles []string
+// var configFiles []string
 
 func main() {
 	log.SetFlags(log.Lshortfile)
+
+	router = httprouter.New()
 
 	// 从运行命令中获得入口配置文件名
 	configFileName := flag.String("config", "./mock/api.json", "Specify the entry configuration file")
@@ -65,19 +71,22 @@ func main() {
 		return
 	}
 
-	// 更新路由
+	// 启动配置文件监听
+	// go watcher(configFileName)
+
+	// 更新路由并重启服务
 	err = updateRouters()
 	if err != nil {
 		log.Println(err.Error())
 		return
 	}
 
-	// 启动配置文件监听
-	go watcher(configFileName)
+	// cors处理
+	handler := cors.Default().Handler(router)
 
 	// 启动服务
 	fmt.Println("Listen on " + config.Listen)
-	if err := http.ListenAndServe(config.Listen, nil); err != nil {
+	if err := http.ListenAndServe(config.Listen, handler); err != nil {
 		log.Println(err.Error())
 		return
 	}
@@ -99,15 +108,15 @@ func watcher(configFileName *string) {
 			select {
 			case event := <-watcher.Events:
 
-				//fmt.Println("Event:", event)
+				// fmt.Println("Event:", event)
 				if event.Op&fsnotify.Write == fsnotify.Write {
-					//读取json配置文件
+					// 读取json配置文件
 					err = loadConfig(*configFileName, &config)
 					if err != nil {
 						log.Println(err.Error())
 						break
 					}
-					//更新路由
+					// 更新路由
 					err = updateRouters()
 					if err != nil {
 						log.Println(err.Error())
@@ -131,17 +140,17 @@ func watcher(configFileName *string) {
 // 加载配置文件
 func loadConfig(filename string, v interface{}) error {
 	// 清空配置文件清单
-	//configFiles = []string{}
+	// configFiles = []string{}
 
 	// 将入口配置文件加入清单
-	//configFiles = append(configFiles, filepath.Base(filename))
+	// configFiles = append(configFiles, filepath.Base(filename))
 
 	// 读取配置文件
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err
 	}
-	//反序列化json
+	// 反序列化json
 	err = json.Unmarshal(data, v)
 	if err != nil {
 		log.Println(err.Error())
@@ -150,15 +159,15 @@ func loadConfig(filename string, v interface{}) error {
 
 	// 遍历配置文件中的路由节点
 	for k := range config.Routers {
-		this := config.Routers[k]
+		thisInclude := config.Routers[k].Include
 
 		// 如果是外部json文件
-		if this.Include != "" {
+		if thisInclude != "" {
 			// 将包含的配置文件加入清单
-			//configFiles = append(configFiles, this.Include)
+			// configFiles = append(configFiles, this.Include)
 
 			// 读取配置文件
-			data, err := ioutil.ReadFile(configPath + "/" + this.Include)
+			data, err := ioutil.ReadFile(configPath + "/" + thisInclude)
 			if err != nil {
 				log.Println(err.Error())
 				return err
@@ -184,97 +193,76 @@ func loadConfig(filename string, v interface{}) error {
 
 // 更新所有路由规则
 func updateRouters() error {
-	// 存在根路径的路由
-	var hasRootPath = false
-
 	// 重置路由
-	http.DefaultServeMux = http.NewServeMux()
+	router = httprouter.New()
+
+	// 404错误
+	router.NotFound = func(resp http.ResponseWriter, req *http.Request) {
+		resp.WriteHeader(404)
+		resp.Write([]byte(http.StatusText(404)))
+	}
+	// 405错误
+	// router.HandleMethodNotAllowed = true
+	// router.MethodNotAllowed = func(resp http.ResponseWriter, req *http.Request) {
+	// 	resp.WriteHeader(405)
+	// 	resp.Write([]byte(http.StatusText(405)))
+	// }
 
 	// 遍历配置文件中的路由节点
 	for k := range config.Routers {
-		this := config.Routers[k]
+		thisMethod := config.Routers[k].Method
+		thisPath := config.Routers[k].Path
+		thisData := config.Routers[k].Data
+		thisStatus := config.Routers[k].Status
 
-		// 标记根路径的路由存在
-		hasRootPath = true
-
+		// // 预检测路由
+		// _, _, exist := router.Lookup(thisMethod, thisPath)
+		// if exist == true {
+		// 	router.OPTIONS(thisPath, func(resp http.ResponseWriter, req *http.Request, params httprouter.Params) {
+		// 		// 允许来自所有域的请求
+		// 		resp.Header().Set("Access-Control-Allow-Origin", "*")
+		// 		resp.Header().Set("Access-Control-Allow-Credentials", "true")
+		// 		resp.Header().Set("Access-Control-Allow-Methods", "*")
+		// 		resp.Header().Set("Access-Control-Allow-Headers", "*")
+		// 		resp.Header().Set("Access-Control-Expose-Headers", "*")
+		// 		resp.WriteHeader(200)
+		// 	})
+		// }
 		// 注册路由
-		http.HandleFunc(this.Path, func(w http.ResponseWriter, r *http.Request) {
+		router.Handle(strings.ToUpper(thisMethod), thisPath, func(resp http.ResponseWriter, req *http.Request, params httprouter.Params) {
 			// 允许来自所有域的请求
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Methods", "*")
-			w.Header().Set("Access-Control-Allow-Headers", "*")
-			w.Header().Set("Access-Control-Expose-Headers", "*")
+			// resp.Header().Set("Access-Control-Allow-Origin", "*")
+			// resp.Header().Set("Access-Control-Allow-Credentials", "true")
+			// resp.Header().Set("Access-Control-Allow-Methods", "*")
+			// resp.Header().Set("Access-Control-Allow-Headers", "*")
+			// resp.Header().Set("Access-Control-Expose-Headers", "*")
 
-			// 如果定义的是根路径的路由
-			if this.Path == "/" {
-				// 定义404错误处理
-				if r.RequestURI != "/" {
-					w.WriteHeader(http.StatusNotFound)
-					w.Write([]byte(http.StatusText(http.StatusNotFound)))
-					return
-				}
-			}
-
-			// 如果是预检查的options请求
-			if r.Method == "OPTIONS" {
-				// 响应202请求
-				w.WriteHeader(http.StatusAccepted)
-				return
-			}
 			// 打印请求
 			fmt.Println()
 			fmt.Println("Request Time: " + time.Now().Format(timeTpl))
-			fmt.Println("Request Resource: [" + r.Method + "] " + r.RequestURI)
+			fmt.Println("Request Resource: [" + req.Method + "] " + req.RequestURI)
 			fmt.Println("Request Headers: ")
-			for k := range r.Header {
-				fmt.Println(k, "=", r.Header.Get(k))
+			for k := range req.Header {
+				fmt.Println(k, "=", req.Header.Get(k))
 			}
-			// 判断HTTP方法是否匹配
-			if r.Method == strings.ToUpper(this.Method) {
-				// 将data节点序列化成json
-				result, err := json.Marshal(this.Data)
-				if err != nil {
-					log.Println(err.Error())
-					return
-				}
-				w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-				// 将数据响应给客户端
-				w.WriteHeader(this.Status)
-				w.Write(result)
-				fmt.Println("Response Status: " + strconv.Itoa(this.Status))
-				fmt.Println("Response Data: ")
-				fmt.Println(string(result))
+			// 将data节点序列化成json
+			result, err := json.Marshal(thisData)
+			if err != nil {
+				log.Println(err.Error())
 				return
 			}
-			// 响应405错误
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			w.Write([]byte("[" + r.Method + "] " + http.StatusText(http.StatusMethodNotAllowed)))
-			fmt.Println("Response Status: ", http.StatusMethodNotAllowed)
-		})
 
+			resp.Header().Set("Content-Type", "application/json; charset=UTF-8")
+			// 将数据响应给客户端
+			resp.WriteHeader(thisStatus)
+			resp.Write(result)
+			fmt.Println("Response Status: " + strconv.Itoa(thisStatus))
+			fmt.Println("Response Data: ")
+			fmt.Println(string(result))
+		})
 		// 输出路由注册信息
-		fmt.Println("Registered Routing: [" + strings.ToUpper(this.Method) + "] " + this.Path)
+		fmt.Println("Registered Routing: [" + strings.ToUpper(thisMethod) + "] " + thisPath)
 	}
-
-	// 如果不存在根路由
-	if hasRootPath == false {
-		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			// 允许来自所有域的请求
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Methods", "*")
-			w.Header().Set("Access-Control-Allow-Headers", "*")
-			w.Header().Set("Access-Control-Expose-Headers", "*")
-
-			if r.RequestURI != "/" {
-				w.WriteHeader(http.StatusNotFound)
-				w.Write([]byte(http.StatusText(http.StatusNotFound)))
-				return
-			}
-		})
-	}
-
 	fmt.Println("Update router success")
 	return nil
 }
