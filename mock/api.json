@@ -15,7 +15,7 @@
         },
         {
             "desc": "POST Request",
-            "path": "/test",
+            "path": "/",
             "method": "post",
             "status": 200,
             "data": {
@@ -24,10 +24,6 @@
                     "key": 123456
                 }
             }
-        },
-        {
-            "desc": "Include JSON configure file",
-            "include": "test2.json"
         }
     ]
 }
